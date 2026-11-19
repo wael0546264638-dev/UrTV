@@ -476,7 +476,6 @@ def strip_css_comments(html):
     """The pages' <style> blocks without their /* comments */ (about 11 KB of the 740 KB budget; the template keeps them for the people who read it)"""
     return re.sub(r"(<style[^>]*>)(.*?)(</style>)", lambda m: m.group(1) + re.sub(r"/\*.*?\*/", "", m.group(2), flags=re.S) + m.group(3), html, flags=re.S)
 
-
 def main():
     template = (ROOT / "src/template.html").read_text(encoding="utf-8").replace("__BUILD__", build_stamp())
     clubs = json.loads((ROOT / "assets/shared/teams.json").read_text(encoding="utf-8"))
@@ -489,10 +488,7 @@ def main():
         page = src
         for token, font in FONTS.items():
             path = ROOT / "assets/fonts" / font
-            if not path.is_file():
-                page = page.replace(token, "data:,")
-            else:
-                page = page.replace(token, data_uri(path, "font/woff2"))
+            page = page.replace(token, data_uri(path, "font/woff2") if inline else REPO + "assets/fonts/" + font)
         entries = []
         for bg in bgs:
             u = data_uri(bg_dir / bg["file"], "image/jpeg") if inline else REPO + "assets/backgrounds/" + bg["file"]
@@ -505,3 +501,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
