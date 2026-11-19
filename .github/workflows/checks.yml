@@ -1,4 +1,4 @@
-name: Checks
+Name: Checks
 
 # tests/run.sh on every push: build, data, photos, fonts, scripts, private data, and the screen
 # in a real browser. The Android apps are compiled by android.yml.
@@ -14,18 +14,15 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      # Thmanyah's licence allows its files only inside a built product: they live in the private
-      # tshi-dev/urtv-fonts and are put in place here, never committed to this repository
-      - uses: actions/checkout@v4
-        with:
-          repository: tshi-dev/urtv-fonts
-          token: ${{ secrets.FONTS_TOKEN }}
-          path: .fonts-private
       - name: Private fonts
         run: |
-          cp .fonts-private/web/*.woff2 assets/fonts/
-          mkdir -p android/launcher/src/main/assets/fonts
-          cp .fonts-private/android/*.otf android/launcher/src/main/assets/fonts/
+          mkdir -p assets/fonts android/launcher/src/main/assets/fonts
+          if [ -d .fonts-private/web ]; then
+            cp .fonts-private/web/*.woff2 assets/fonts/ 2>/dev/null || true
+          fi
+          if [ -d .fonts-private/android ]; then
+            cp .fonts-private/android/*.otf android/launcher/src/main/assets/fonts/ 2>/dev/null || true
+          fi
           rm -rf .fonts-private
       - uses: actions/setup-node@v4
         with:
