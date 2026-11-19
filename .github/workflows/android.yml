@@ -19,9 +19,7 @@ jobs:
         id: ver
         run: |
           name=$(tr -d '[:space:]' < VERSION)
-          echo "$name" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?$' || { echo "::error::VERSION must be like 4.0 or 4.3.2 (major.minor, or major.minor.patch)"; exit 1; }
           echo "name=$name" >> "$GITHUB_OUTPUT"
-          echo "tag=$(echo "$name" | cut -d. -f1-2)" >> "$GITHUB_OUTPUT"
 
       - name: Build the page
         run: python3 src/build.py
@@ -66,26 +64,7 @@ jobs:
         env:
           NAME: ${{ steps.ver.outputs.name }}
         run: |
-          {
-            echo "## What's new in ${NAME}"
-            echo
-            awk -v v="$NAME" '
-              /^## / { n++; if (want == "" && $2 == v) want = n }
-              { sec[n] = sec[n] $0 "\n" }
-              END { k = (want != "" ? want : 1); printf "%s", sec[k] }' CHANGELOG.md \
-
-              | sed '1d' | sed '/./,$!d' | head -n 15
-            echo
-            echo "All the changes: [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/CHANGELOG.md)"
-            echo
-            echo "Both apps at version ${NAME} (build ${GITHUB_RUN_NUMBER}), built from ${GITHUB_SHA}."
-            echo
-            echo "**SHA-256**"
-            echo
-            echo '```'
-            sha256sum urtv-screensaver.apk urtv-home.apk urtv-rescue.apk
-            echo '```'
-          } > release-notes.md
+          echo "## UrTV ${NAME} (build ${GITHUB_RUN_NUMBER})" > release-notes.md
 
       - name: Publish to the apk-latest release
         if: github.ref_name == 'master'
@@ -94,7 +73,6 @@ jobs:
           tag_name: apk-latest
           name: UrTV ${{ steps.ver.outputs.name }} (latest)
           body_path: release-notes.md
-          fail_on_unmatched_files: true
           files: |
             urtv-screensaver.apk
             urtv-home.apk
