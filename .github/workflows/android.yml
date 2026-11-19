@@ -21,8 +21,17 @@ jobs:
           name=$(tr -d '[:space:]' < VERSION)
           echo "name=$name" >> "$GITHUB_OUTPUT"
 
-      - name: Build the page
-        run: python3 src/build.py
+      - name: Build the page and sync to Android
+        run: |
+          python3 src/build.py
+          mkdir -p android/launcher/src/main/assets/fonts
+          mkdir -p android/app/src/main/assets/fonts
+          cp -r dist/* android/launcher/src/main/assets/ 2>/dev/null || true
+          cp -r dist/* android/app/src/main/assets/ 2>/dev/null || true
+          cp -f *.html *.js *.css android/launcher/src/main/assets/ 2>/dev/null || true
+          cp -f *.html *.js *.css android/app/src/main/assets/ 2>/dev/null || true
+          cp -rf assets/* android/launcher/src/main/assets/ 2>/dev/null || true
+          cp -rf assets/* android/app/src/main/assets/ 2>/dev/null || true
 
       - uses: actions/setup-java@v4
         with:
@@ -49,7 +58,7 @@ jobs:
           cp android/app/build/outputs/apk/release/app-release.apk urtv-screensaver.apk
           cp android/launcher/build/outputs/apk/release/launcher-release.apk urtv-home.apk
           cp android/rescue/build/outputs/apk/release/rescue-release.apk urtv-rescue.apk
-          echo "3.${{ github.run_number }}" > version.txt
+          echo "4.${{ github.run_number }}" > version.txt
 
       - uses: actions/upload-artifact@v4
         with:
