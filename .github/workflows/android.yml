@@ -1,4 +1,4 @@
-Name: Build APKs
+name: Build APKs
 
 on:
   push:
@@ -25,15 +25,18 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      # Thmanyah's licence allows its files only inside a built product: they live in the private
+      # tshi-dev/urtv-fonts and are put in place here, never committed to this repository
+      - uses: actions/checkout@v4
+        with:
+          repository: tshi-dev/urtv-fonts
+          token: ${{ secrets.FONTS_TOKEN }}
+          path: .fonts-private
       - name: Private fonts
         run: |
-          mkdir -p assets/fonts android/launcher/src/main/assets/fonts
-          if [ -d .fonts-private/web ]; then
-            cp .fonts-private/web/*.woff2 assets/fonts/ 2>/dev/null || true
-          fi
-          if [ -d .fonts-private/android ]; then
-            cp .fonts-private/android/*.otf android/launcher/src/main/assets/fonts/ 2>/dev/null || true
-          fi
+          cp .fonts-private/web/*.woff2 assets/fonts/
+          mkdir -p android/launcher/src/main/assets/fonts
+          cp .fonts-private/android/*.otf android/launcher/src/main/assets/fonts/
           rm -rf .fonts-private
 
       # the name people read (VERSION at the repository root, «4.0»): the release names and bodies use it; the apps read the same file in Gradle
@@ -41,10 +44,10 @@ jobs:
         id: ver
         run: |
           name=$(tr -d '[:space:]' < VERSION)
-          echo "$name" \vert{} grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?$' || { echo "::error::VERSION must be like 4.0 or 4.3.2 (major.minor, or major.minor.patch)"; exit 1; }
+          echo "$name" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?$' || { echo "::error::VERSION must be like 4.0 or 4.3.2 (major.minor, or major.minor.patch)"; exit 1; }
           echo "name=$name" >> "$GITHUB_OUTPUT"
           # the tag keeps the two-part shape the updater and the scripts read (v4.3.<build>); only the name people read has the patch (4.3.2)
-          echo "tag=$(echo "$name" \vert{} cut -d. -f1-2)" >> "$GITHUB_OUTPUT"
+          echo "tag=$(echo "$name" | cut -d. -f1-2)" >> "$GITHUB_OUTPUT"
 
       - name: Build the page
         run: python3 src/build.py
@@ -64,10 +67,10 @@ jobs:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          if [ -z "$KEYSTORE_B64" ] \vert{}\vert{} [ -z "$KEYSTORE_PASSWORD" ]; then
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
             echo "::error::ANDROID_KEYSTORE_B64 and ANDROID_KEYSTORE_PASSWORD must both be in the repository's secrets"; exit 1
           fi
-          echo "$KEYSTORE_B64" \vert{} base64 -d > "$RUNNER_TEMP/release.p12"
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
           echo "ANDROID_KEYSTORE=$RUNNER_TEMP/release.p12" >> "$GITHUB_ENV"
 
       - name: Build APKs
@@ -113,4 +116,67 @@ jobs:
             echo
             # this version's section of the CHANGELOG (or the newest one if it has none yet), without its heading, cut to 15 lines
             awk -v v="$NAME" '
-              /^##
+              /^## / { n++; if (want == "" && $2 == v) want = n }
+              { sec[n] = sec[n] $0 "\n" }
+              END { k = (want != "" ? want : 1); printf "%s", sec[k] }' CHANGELOG.md \
+              | sed '1d' | sed '/./,$!d' | head -n 15
+            echo
+            echo "All the changes: [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/CHANGELOG.md)"
+            echo
+            echo "Both apps at version ${NAME} (build ${GITHUB_RUN_NUMBER}), built from ${GITHUB_SHA}."
+            echo
+            echo "**SHA-256**"
+            echo
+            echo '```'
+            sha256sum urtv-screensaver.apk urtv-home.apk urtv-rescue.apk
+            echo '```'
+          } > release-notes.md
+          cat release-notes.md
+
+      # fixed download links: .../releases/download/apk-latest/urtv-screensaver.apk and urtv-home.apk
+      - name: Publish to the apk-latest release
+        if: github.ref_name == 'master'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: UrTV ${{ steps.ver.outputs.name }} (latest)
+          body_path: release-notes.md
+          fail_on_unmatched_files: true   # a name that matches nothing (a typo) must stop the publish, not publish without it
+          files: |
+            urtv-screensaver.apk
+            urtv-home.apk
+            urtv-rescue.apk
+            version.txt
+          make_latest: true
+
+      # and every build kept under its own tag (v4.3.N: the version and the build; the release is titled «UrTV 4.3.2 (build N)», so no two titles match): APK_TAG=v4.3.N optimize/install.sh all (the older ones are v3.N)
+      - name: Publish to the numbered release
+        if: github.ref_name == 'master'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.tag }}.${{ github.run_number }}
+          name: UrTV ${{ steps.ver.outputs.name }} (build ${{ github.run_number }})
+          body_path: release-notes.md
+          fail_on_unmatched_files: true   # a name that matches nothing (a typo) must stop the publish, not publish without it
+          files: |
+            urtv-screensaver.apk
+            urtv-home.apk
+            urtv-rescue.apk
+          make_latest: false
+
+      # next: one test release, replaced by each build; install with APK_TAG=apk-next optimize/install.sh all
+      # version.txt is what «تحديث تلفزيوني» reads on the test channel (optimize/saver.sh updatechannel next)
+      - name: Publish to the apk-next test release
+        if: github.ref_name == 'next'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-next
+          name: Test build from next
+          body: "Both apps at version ${{ steps.ver.outputs.name }} (build ${{ github.run_number }}), built from next at ${{ github.sha }}. For testing only."
+          fail_on_unmatched_files: true   # a name that matches nothing (a typo) must stop the publish, not publish without it
+          files: |
+            urtv-screensaver.apk
+            urtv-home.apk
+            version.txt
+          prerelease: true
+          make_latest: false
