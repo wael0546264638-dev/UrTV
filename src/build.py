@@ -489,18 +489,19 @@ def main():
         page = src
         for token, font in FONTS.items():
             path = ROOT / "assets/fonts" / font
-            if inline and not path.is_file():   # Thmanyah comes from the private urtv-fonts repo (CI, or a copy you have):
-                page = page.replace(token, "data:,")   # without it this page falls back to the system's Arabic font
+            if not path.is_file():
+                page = page.replace(token, "data:,")
             else:
-                page = page.replace(token, data_uri(path, "font/woff2") if inline else REPO + "assets/fonts/" + font)
+                page = page.replace(token, data_uri(path, "font/woff2"))
         entries = []
         for bg in bgs:
             u = data_uri(bg_dir / bg["file"], "image/jpeg") if inline else REPO + "assets/backgrounds/" + bg["file"]
-            entries.append(f'  {{u:"{u}", c:{js_json(bg["credit"])}, d:{bg["brightness"]}}}')
+            entries.append(f'{{u:"{u}",c:{js_json(bg["credit"])},d:{bg["brightness"]}}}')
         out = ROOT / "dist" / name
         out.parent.mkdir(exist_ok=True)
         out.write_text(strip_css_comments(page.replace("__BG_SET__", ",\n".join(entries))), encoding="utf-8")
         print(f"wrote {out.relative_to(ROOT)} ({out.stat().st_size / 1e6:.1f} MB)")
+
 
 if __name__ == "__main__":
     main()
