@@ -1,4 +1,4 @@
-Name: Checks
+name: Checks
 
 # tests/run.sh on every push: build, data, photos, fonts, scripts, private data, and the screen
 # in a real browser. The Android apps are compiled by android.yml.
